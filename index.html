@@ -1,0 +1,1173 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FRC Scouting System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <style>
+        :root {
+            --frc-dark: #0a0a13;
+            --frc-card: #1a1a2e;
+            --frc-accent: #6d28d9;
+            --frc-blue: #1e3a8a;
+            --frc-gray: #374151;
+            --frc-white: #fff;
+            --frc-purple: #6d28d9;
+        }
+        body {
+            background-color: var(--frc-dark);
+            color: var(--frc-white);
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+        .frc-card {
+            background-color: var(--frc-card);
+            border: 1px solid var(--frc-gray);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+        }
+        .frc-input {
+            width: 100%;
+            background-color: var(--frc-dark);
+            border: 1px solid var(--frc-gray);
+            border-radius: 0.5rem;
+            padding: 0.75rem 1rem;
+            color: var(--frc-white);
+        }
+        .frc-input:focus {
+            outline: none;
+            border-color: var(--frc-accent);
+        }
+        .frc-button {
+            background-color: var(--frc-purple);
+            color: var(--frc-white);
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .frc-button:hover {
+            background-color: var(--frc-blue);
+        }
+        .frc-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .hidden { display: none; }
+        .grid { display: grid; }
+        .flex { display: flex; }
+        .notification {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            padding: 1rem 1.5rem;
+            border-radius: 0.5rem;
+            color: var(--frc-white);
+            font-weight: 500;
+            z-index: 1000;
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+        }
+        .notification.show {
+            transform: translateX(0);
+        }
+        .notification.success { background-color: #3b82f6; }
+        .notification.error { background-color: #6d28d9; }
+        select option {
+            background-color: var(--frc-dark);
+            color: var(--frc-white);
+        }
+        /* Custom colors for cards and buttons */
+        .bg-blue-900 { background-color: #1e293b !important; }
+        .bg-gray-700 { background-color: #374151 !important; }
+        .bg-gray-800 { background-color: #1f2937 !important; }
+        .bg-gray-600 { background-color: #4b5563 !important; }
+        .bg-gray-400 { background-color: #9ca3af !important; }
+        .bg-purple-600 { background-color: #6d28d9 !important; }
+        .bg-purple-700 { background-color: #5b21b6 !important; }
+        .bg-blue-600 { background-color: #2563eb !important; }
+        .bg-blue-700 { background-color: #1d4ed8 !important; }
+        .bg-white { background-color: #fff !important; }
+        .text-blue-400 { color: #60a5fa !important; }
+        .text-blue-500 { color: #3b82f6 !important; }
+        .text-gray-300 { color: #d1d5db !important; }
+        .text-gray-400 { color: #9ca3af !important; }
+        .text-gray-500 { color: #6b7280 !important; }
+        .text-white { color: #fff !important; }
+        .text-purple-400 { color: #a78bfa !important; }
+        .text-purple-600 { color: #7c3aed !important; }
+        .text-black { color: #000 !important; }
+        .border-purple-600 { border-color: #6d28d9 !important; }
+    </style>
+</head>
+<body>
+    <!-- Notification -->
+    <div id="notification" class="notification"></div>
+
+    <!-- Header -->
+    <header class="bg-gray-800 p-4 shadow-lg">
+        <div class="flex items-center justify-between max-w-6xl mx-auto">
+            <div class="flex items-center space-x-3">
+                <div class="w-8 h-8 bg-blue-900 rounded-lg flex items-center justify-center">
+                    <span class="text-white font-bold text-sm">FRC</span>
+                </div>
+                <div>
+                    <h1 class="text-lg font-semibold text-white">FRC Scouting</h1>
+                    <p class="text-gray-400 text-sm">Sistema de Análise</p>
+                </div>
+            </div>
+            <button onclick="showPage('home')" class="text-gray-400 hover:text-white transition-colors">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto p-4">
+        <!-- Home Page -->
+        <div id="home-page" class="page">
+            <div class="space-y-6">
+                <div class="text-center space-y-4 py-8">
+                    <h2 class="text-2xl font-bold text-white">Sistema de Scouting FRC</h2>
+                    <p class="text-gray-300">Gerencie equipes, registre partidas e analise performance das equipes de FRC.</p>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div onclick="showPage('register-team')" class="frc-card hover:bg-blue-900 transition-colors cursor-pointer">
+                        <div class="flex flex-col items-center text-center space-y-4">
+                            <div class="w-12 h-12"></div>
+                            <div>
+                                <h3 class="font-semibold text-lg text-white">Registrar Equipe</h3>
+                                <p class="text-gray-300 text-sm">Cadastre uma nova equipe no sistema</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div onclick="showPage('register-match')" class="frc-card hover:bg-blue-900 transition-colors cursor-pointer">
+                        <div class="flex flex-col items-center text-center space-y-4">
+                            <div class="w-12 h-12"></div>
+                            <div>
+                                <h3 class="font-semibold text-lg text-white">Registrar Partida</h3>
+                                <p class="text-gray-300 text-sm">Registre dados de uma partida</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div onclick="showPage('ranking')" class="frc-card hover:bg-blue-900 transition-colors cursor-pointer">
+                        <div class="flex flex-col items-center text-center space-y-4">
+                            <div class="w-12 h-12"></div>
+                            <div>
+                                <h3 class="font-semibold text-lg text-white">Ranking</h3>
+                                <p class="text-gray-300 text-sm">Rankings e métricas das equipes</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div onclick="showPage('statistics')" class="frc-card hover:bg-blue-900 transition-colors cursor-pointer">
+                        <div class="flex flex-col items-center text-center space-y-4">
+                            <div class="w-12 h-12"></div>
+                            <div>
+                                <h3 class="font-semibold text-lg text-white">Gerais</h3>
+                                <p class="text-gray-300 text-sm">Estatísticas gerais</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Register Team Page -->
+        <div id="register-team-page" class="page hidden">
+            <div class="space-y-6">
+                <div class="flex items-center space-x-4 mb-6">
+                    <button onclick="showPage('home')" class="text-gray-400 hover:text-white transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                        </svg>
+                    </button>
+                    <span class="text-gray-400">Voltar</span>
+                    <h2 class="text-xl font-semibold text-white">Registrar Equipe</h2>
+                </div>
+                <div class="frc-card max-w-2xl mx-auto">
+                    <h3 class="text-lg font-semibold text-white mb-6">Cadastro de Nova Equipe</h3>
+                    <form id="team-form" class="space-y-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-white font-medium mb-2">Número da Equipe *</label>
+                                <input type="number" id="team-number" placeholder="Ex: 9219" class="frc-input" required>
+                            </div>
+                            <div>
+                                <label class="block text-white font-medium mb-2">Nome da Equipe *</label>
+                                <input type="text" id="team-name" placeholder="Ex: Ninetails" class="frc-input" required>
+                            </div>
+                        </div>
+                        <div class="flex space-x-4 pt-4">
+                            <button type="button" onclick="showPage('home')" class="bg-gray-600 hover:bg-gray-700 text-white font-medium px-6 py-3 rounded-lg transition-colors">
+                                Cancelar
+                            </button>
+                            <button type="submit" class="frc-button">
+                                Salvar Equipe
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                <!-- Lista de equipes -->
+                <div class="frc-card max-w-2xl mx-auto mt-8">
+                    <h3 class="text-lg font-semibold text-white mb-4">Equipes Registradas</h3>
+                    <div id="team-list" class="space-y-2">
+                        <!-- Lista de equipes será preenchida por JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Register Match Page -->
+        <div id="register-match-page" class="page hidden">
+            <div class="space-y-6">
+                <div class="flex items-center space-x-4 mb-6">
+                    <button onclick="showPage('home')" class="text-gray-400 hover:text-white transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                        </svg>
+                    </button>
+                    <span class="text-gray-400">Voltar</span>
+                    <h2 class="text-xl font-semibold text-white">Registrar Partida</h2>
+                </div>
+                <div class="frc-card max-w-4xl mx-auto">
+                    <h3 class="text-lg font-semibold text-white mb-6">Registro de Nova Partida</h3>
+                    <form id="match-form" class="space-y-8">
+                        <!-- Basic Info -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-white font-medium mb-2">Número da Equipe *</label>
+                                <select id="match-team" class="frc-input" required>
+                                    <option value="">Selecione uma equipe</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-white font-medium mb-2">Número da Partida *</label>
+                                <input type="number" id="match-number" placeholder="Ex: 1" class="frc-input" required>
+                            </div>
+                        </div>
+                        <!-- Autonomous Section -->
+                        <div class="space-y-4">
+                            <h4 class="text-lg font-semibold text-white">Autônomo</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-white font-medium mb-2">Coral L1</label>
+                                    <input type="number" min="0" id="auto-coral-l1" class="frc-input" value="0">
+                                </div>
+                                <div>
+                                    <label class="block text-white font-medium mb-2">Coral L2</label>
+                                    <input type="number" min="0" id="auto-coral-l2" class="frc-input" value="0">
+                                </div>
+                                <div>
+                                    <label class="block text-white font-medium mb-2">Coral L3</label>
+                                    <input type="number" min="0" id="auto-coral-l3" class="frc-input" value="0">
+                                </div>
+                                <div>
+                                    <label class="block text-white font-medium mb-2">Coral L4</label>
+                                    <input type="number" min="0" id="auto-coral-l4" class="frc-input" value="0">
+                                </div>
+                                <div>
+                                    <label class="block text-white font-medium mb-2">Processador</label>
+                                    <input type="number" min="0" id="auto-processador" class="frc-input" value="0">
+                                </div>
+                                <div>
+                                    <label class="block text-white font-medium mb-2">Net</label>
+                                    <input type="number" min="0" id="auto-net" class="frc-input" value="0">
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Teleop Section -->
+                        <div class="space-y-4">
+                            <h4 class="text-lg font-semibold text-white">Tele-operado</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-white font-medium mb-2">Coral L1</label>
+                                    <input type="number" min="0" id="tele-coral-l1" class="frc-input" value="0">
+                                </div>
+                                <div>
+                                    <label class="block text-white font-medium mb-2">Coral L2</label>
+                                    <input type="number" min="0" id="tele-coral-l2" class="frc-input" value="0">
+                                </div>
+                                <div>
+                                    <label class="block text-white font-medium mb-2">Coral L3</label>
+                                    <input type="number" min="0" id="tele-coral-l3" class="frc-input" value="0">
+                                </div>
+                                <div>
+                                    <label class="block text-white font-medium mb-2">Coral L4</label>
+                                    <input type="number" min="0" id="tele-coral-l4" class="frc-input" value="0">
+                                </div>
+                                <div>
+                                    <label class="block text-white font-medium mb-2">Processador</label>
+                                    <input type="number" min="0" id="tele-processador" class="frc-input" value="0">
+                                </div>
+                                <div>
+                                    <label class="block text-white font-medium mb-2">Net</label>
+                                    <input type="number" min="0" id="tele-net" class="frc-input" value="0">
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Endgame Section -->
+                        <div class="space-y-4">
+                            <h4 class="text-lg font-semibold text-white">Endgame</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-white font-medium mb-2">Status Final</label>
+                                    <select id="endgame-status" class="frc-input">
+                                        <option value="0">Não estacionado (0 pts)</option>
+                                        <option value="2">Estacionado (2 pts)</option>
+                                        <option value="6">Cage Rasa (6 pts)</option>
+                                        <option value="12">Cage Profunda (12 pts)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-white font-medium mb-2">Avaliação do Piloto (0-10)</label>
+                                    <input type="number" min="0" max="10" id="pilot-rating" placeholder="Ex: 8" class="frc-input" value="0">
+                                </div>
+                                <div>
+                                    <label class="block text-white font-medium mb-2">Resultado *</label>
+                                    <select id="match-result" class="frc-input" required>
+                                        <option value="">Selecione o resultado</option>
+                                        <option value="win">Vitória</option>
+                                        <option value="loss">Derrota</option>
+                                        <option value="tie">Empate</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Observations -->
+                        <div>
+                            <label class="block text-white font-medium mb-2">Observações (Opcional)</label>
+                            <textarea id="match-observations" rows="4" placeholder="Notas sobre a partida..." class="frc-input resize-none"></textarea>
+                        </div>
+                        <div class="flex space-x-4 pt-4">
+                            <button type="button" onclick="showPage('home')" class="bg-gray-600 hover:bg-gray-700 text-white font-medium px-6 py-3 rounded-lg transition-colors">
+                                Cancelar
+                            </button>
+                            <button type="submit" class="frc-button">
+                                Salvar Partida
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ranking Page -->
+        <div id="ranking-page" class="page hidden">
+            <div class="space-y-6">
+                <div class="flex items-center space-x-4 mb-6">
+                    <button onclick="showPage('home')" class="text-gray-400 hover:text-white transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                        </svg>
+                    </button>
+                    <span class="text-gray-400">Voltar</span>
+                    <h2 class="text-xl font-semibold text-white">Ranking das Equipes</h2>
+                </div>
+
+                <div class="frc-card max-w-6xl mx-auto">
+                    <h3 class="text-lg font-semibold text-white mb-6">Ranking das Equipes</h3>
+                    <p class="text-gray-300 mb-6">Classificação baseada no índice de pontos e número de vitórias.</p>
+                    
+                    <div id="ranking-list" class="space-y-4">
+                        <!-- Ranking items will be populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statistics Page -->
+        <div id="statistics-page" class="page hidden">
+            <div class="space-y-6">
+                <div class="flex items-center space-x-4 mb-6">
+                    <button onclick="showPage('home')" class="text-gray-400 hover:text-white transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                        </svg>
+                    </button>
+                    <span class="text-gray-400">Voltar</span>
+                    <h2 class="text-xl font-semibold text-white">Estatísticas Gerais</h2>
+                </div>
+
+                <!-- Module Selector -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div onclick="setStatsModule('allIn')" id="stats-allIn" class="bg-purple-600 hover:bg-purple-700 rounded-xl p-6 text-center cursor-pointer transition-colors">
+                        <div class="flex flex-col items-center space-y-4">
+                            <h3 class="font-semibold text-lg text-white">All In</h3>
+                        </div>
+                    </div>
+
+                    <div onclick="setStatsModule('teamAnalysis')" id="stats-teamAnalysis" class="bg-purple-600 hover:bg-purple-700 rounded-xl p-6 text-center cursor-pointer transition-colors">
+                        <div class="flex flex-col items-center space-y-4">
+                            <h3 class="font-semibold text-lg text-white">Análise de Equipe</h3>
+                        </div>
+                    </div>
+
+                    <div onclick="setStatsModule('compare')" id="stats-compare" class="bg-purple-600 hover:bg-purple-700 rounded-xl p-6 text-center cursor-pointer transition-colors">
+                        <div class="flex flex-col items-center space-y-4">
+                            <h3 class="font-semibold text-lg text-white">Comparar Equipes</h3>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Module Content -->
+                <div class="frc-card">
+                    <!-- All In Module -->
+                    <div id="stats-content-allIn" class="stats-content">
+                        <h3 class="text-lg font-semibold text-white mb-6">Simulação de Partidas - All In</h3>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                            <div class="bg-blue-900 rounded-lg p-4">
+                                <h4 class="text-md font-semibold text-white mb-4">Aliança Azul</h4>
+                                <div class="space-y-3">
+                                    <select id="blue-team-1" class="frc-input">
+                                        <option value="">Selecione uma equipe</option>
+                                    </select>
+                                    <select id="blue-team-2" class="frc-input">
+                                        <option value="">Selecione uma equipe</option>
+                                    </select>
+                                    <select id="blue-team-3" class="frc-input">
+                                        <option value="">Selecione uma equipe</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-red-900 rounded-lg p-4">
+                                <h4 class="text-md font-semibold text-white mb-4">Aliança Vermelha</h4>
+                                <div class="space-y-3">
+                                    <select id="red-team-1" class="frc-input">
+                                        <option value="">Selecione uma equipe</option>
+                                    </select>
+                                    <select id="red-team-2" class="frc-input">
+                                        <option value="">Selecione uma equipe</option>
+                                    </select>
+                                    <select id="red-team-3" class="frc-input">
+                                        <option value="">Selecione uma equipe</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="text-center mb-6">
+                            <button onclick="simulateMatch()" class="bg-purple-600 hover:bg-purple-700 text-white px-8 py-3 rounded-lg">
+                                Simular Partida
+                            </button>
+                        </div>
+
+                        <div id="prediction-results" class="hidden space-y-6">
+                            <!-- Prediction results will be populated by JavaScript -->
+                        </div>
+                    </div>
+
+                    <!-- Team Analysis Module -->
+                    <div id="stats-content-teamAnalysis" class="stats-content hidden">
+                        <h3 class="text-lg font-semibold text-white mb-6">Análise Individual de Equipe</h3>
+                        
+                        <div class="mb-6">
+                            <select id="analysis-team" class="frc-input max-w-md" onchange="analyzeTeam()">
+                                <option value="">Selecione uma equipe</option>
+                            </select>
+                        </div>
+
+                        <div id="team-analysis-results" class="space-y-6">
+                            <!-- Analysis results will be populated by JavaScript -->
+                        </div>
+                        <div class="frc-card mt-4">
+                            <canvas id="team-progress-chart" height="100"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Compare Module -->
+                    <div id="stats-content-compare" class="stats-content hidden">
+                        <h3 class="text-lg font-semibold text-white mb-6">Comparação entre Equipes</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                            <div>
+                                <label class="block text-white font-medium mb-2">Primeira Equipe</label>
+                                <select id="compare-team-1" class="frc-input" onchange="compareTeams()">
+                                    <option value="">Selecione uma equipe</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-white font-medium mb-2">Segunda Equipe</label>
+                                <select id="compare-team-2" class="frc-input" onchange="compareTeams()">
+                                    <option value="">Selecione uma equipe</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div id="comparison-results" class="space-y-6">
+                            <!-- Comparison results will be populated by JavaScript -->
+                        </div>
+                        <div class="frc-card mt-4">
+                            <canvas id="compare-chart" height="120"></canvas>
+                        </div>
+                        <div class="frc-card mt-4">
+                            <canvas id="compare-progress-chart" height="120"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal para detalhes da partida -->
+        <div id="match-detail-modal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden">
+            <div class="bg-gray-800 rounded-lg shadow-lg max-w-lg w-full p-6 relative">
+                <button onclick="closeMatchDetailModal()" class="absolute top-2 right-2 text-gray-400 hover:text-white text-2xl">&times;</button>
+                <h3 class="text-xl font-bold text-white mb-4">Detalhes da Partida <span id="modal-match-number"></span></h3>
+                <div id="modal-match-details" class="space-y-2 text-white text-sm">
+                    <!-- Detalhes da partida aqui -->
+                </div>
+            </div>
+        </div>
+    </main>
+<script src="FirebaseConfig.js" defer></script>
+<script src="SistemaDePontuação.js" defer></script>
+<script src="NavegaçãoPagina.js" defer></script>
+<script src="RegistroDeEquipes.js" defer></script>
+<script src="RegistroDePartida.js" defer></script>
+<script src="AtualizarEquipes.js" defer></script>
+<script src="AtualizarRanking.js" defer></script>
+<script src="SimulaçãoPartida.js" defer ></script>
+    <script>
+      
+
+
+        // Notifications
+        function showNotification(message, type = 'success') {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.className = `notification ${type}`;
+            notification.classList.add('show');
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+
+
+        // Statistics Module
+        let currentStatsModule = 'allIn';
+
+        function setStatsModule(module) {
+            currentStatsModule = module;
+            
+            // Update visual selection
+            // Remove ring classes only from module buttons, not from content divs
+            document.querySelectorAll('#statistics-page [id^="stats-"]').forEach(el => {
+                if (!el.id.startsWith('stats-content-')) {
+                    el.classList.remove('ring-2', 'ring-white');
+                }
+            });
+            document.getElementById(`stats-${module}`).classList.add('ring-2', 'ring-white');
+            
+            // Show/hide content
+            document.querySelectorAll('.stats-content').forEach(content => {
+                content.classList.add('hidden');
+            });
+            document.getElementById(`stats-content-${module}`).classList.remove('hidden');
+            
+            updateStatisticsSelects();
+        }
+
+        async function updateStatisticsSelects() {
+            const teams = await Storage.getTeams();
+            
+            // Update all selects in statistics page
+            const selects = [
+                'blue-team-1', 'blue-team-2', 'blue-team-3',
+                'red-team-1', 'red-team-2', 'red-team-3',
+                'analysis-team', 'compare-team-1', 'compare-team-2'
+            ];
+            
+            selects.forEach(selectId => {
+                const select = document.getElementById(selectId);
+                if (select) {
+                    select.innerHTML = '<option value="">Selecione uma equipe</option>';
+                    teams.forEach(team => {
+                        const option = document.createElement('option');
+                        option.value = team.number;
+                        option.textContent = `#${team.number} - ${team.name}`;
+                        select.appendChild(option);
+                    });
+                }
+            });
+        }
+
+
+
+        // Team Analysis
+        let teamChart = null;
+        async function analyzeTeam() {
+            const teamNumber = parseInt(document.getElementById('analysis-team').value);
+            if (!teamNumber) {
+                // Clear results and chart if no team selected
+                document.getElementById('team-analysis-results').innerHTML = '';
+                if (teamChart) {
+                    teamChart.destroy();
+                    teamChart = null;
+                }
+                return;
+            }
+
+            const teams = await Storage.getTeams();
+            const matches = await Storage.getMatches();
+            const team = teams.find(t => t.number === teamNumber);
+            const teamMatches = matches
+                .filter(m => m.teamNumber === teamNumber)
+                .sort((a, b) => a.matchNumber - b.matchNumber);
+
+            if (!team) return;
+
+            const stats = team.stats || {
+                totalMatches: 0,
+                wins: 0,
+                losses: 0,
+                ties: 0,
+                averagePoints: 0
+            };
+
+            // Prepare data for chart
+            const matchLabels = teamMatches.map(m => `#${m.matchNumber}`);
+            const matchScores = teamMatches.map(m => m.totalScore);
+
+            const resultsDiv = document.getElementById('team-analysis-results');
+            resultsDiv.innerHTML = `
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div class="frc-card">
+                        <div class="text-sm text-gray-300 mb-2">Total de Partidas</div>
+                        <div class="text-2xl font-bold text-white">${stats.totalMatches}</div>
+                    </div>
+                    <div class="frc-card">
+                        <div class="text-sm text-gray-300 mb-2">Vitórias</div>
+                        <div class="text-2xl font-bold text-green-400">${stats.wins}</div>
+                    </div>
+                    <div class="frc-card">
+                        <div class="text-sm text-gray-300 mb-2">Derrotas</div>
+                        <div class="text-2xl font-bold text-red-400">${stats.losses}</div>
+                    </div>
+                    <div class="frc-card">
+                        <div class="text-sm text-gray-300 mb-2">Empates</div>
+                        <div class="text-2xl font-bold text-yellow-400">${stats.ties}</div>
+                    </div>
+                    <div class="frc-card md:col-span-4">
+                        <div class="text-sm text-gray-300 mb-2">Pontuação Média</div>
+                        <div class="text-2xl font-bold text-orange-400">${stats.averagePoints.toFixed(1)}</div>
+                    </div>
+                </div>
+
+                <div class="frc-card">
+                    <h4 class="text-lg font-semibold text-white mb-4">Histórico de Partidas</h4>
+                    <div class="space-y-3">
+                        ${teamMatches.length === 0 ? 
+                            '<div class="text-center py-8 text-gray-400">Nenhuma partida registrada</div>' :
+                            teamMatches.map((match, index) => `
+                                <div class="flex items-center justify-between p-3 bg-gray-700 rounded-lg">
+                                    <div class="flex items-center space-x-4">
+                                        <button onclick='showMatchDetailModal(${JSON.stringify(match)})' class="text-white font-medium underline hover:text-orange-400 focus:outline-none">
+                                            Partida ${match.matchNumber}
+                                        </button>
+                                        <div class="px-2 py-1 rounded text-xs font-medium ${
+                                            match.result === 'win' ? 'bg-green-600 text-white' :
+                                            match.result === 'loss' ? 'bg-red-600 text-white' :
+                                            'bg-yellow-600 text-white'
+                                        }">
+                                            ${match.result === 'win' ? 'Vitória' : match.result === 'loss' ? 'Derrota' : 'Empate'}
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center space-x-4">
+                                        <div class="text-orange-400 font-bold">${match.totalScore} pts</div>
+                                        <div class="text-gray-300 text-sm">Piloto: ${match.pilotRating}/10</div>
+                                    </div>
+                                </div>
+                            `).join('')
+                        }
+                    </div>
+                </div>
+            `;
+
+            // Render chart
+            const ctx = document.getElementById('team-progress-chart').getContext('2d');
+            if (teamChart) {
+                teamChart.destroy();
+            }
+            teamChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: matchLabels,
+                    datasets: [{
+                        label: 'Pontuação por Partida',
+                        data: matchScores,
+                        borderColor: '#f59e42',
+                        backgroundColor: 'rgba(245, 158, 66, 0.2)',
+                        fill: true,
+                        tension: 0.2,
+                        pointRadius: 5,
+                        pointBackgroundColor: '#f59e42',
+                        pointBorderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false },
+                        title: {
+                            display: true,
+                            text: 'Desenvolvimento da Pontuação ao Longo das Partidas',
+                            color: '#fff',
+                            font: { size: 16 }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#fff' },
+                            grid: { color: '#444' }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            ticks: { color: '#fff' },
+                            grid: { color: '#444' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Compare Teams
+        let compareChart = null;
+        let compareProgressChart = null;
+        async function compareTeams() {
+            const team1Number = parseInt(document.getElementById('compare-team-1').value);
+            const team2Number = parseInt(document.getElementById('compare-team-2').value);
+            if (!team1Number || !team2Number) {
+                document.getElementById('comparison-results').innerHTML = '';
+                if (compareChart) {
+                    compareChart.destroy();
+                    compareChart = null;
+                }
+                if (compareProgressChart) {
+                    compareProgressChart.destroy();
+                    compareProgressChart = null;
+                }
+                return;
+            }
+            const teams = await Storage.getTeams();
+            const matches = await Storage.getMatches();
+            const team1 = teams.find(t => t.number === team1Number);
+            const team2 = teams.find(t => t.number === team2Number);
+
+            if (!team1 || !team2) return;
+
+            const stats1 = team1.stats || {
+                totalMatches: 0,
+                wins: 0,
+                losses: 0,
+                ties: 0,
+                averagePoints: 0
+            };
+            const stats2 = team2.stats || {
+                totalMatches: 0,
+                wins: 0,
+                losses: 0,
+                ties: 0,
+                averagePoints: 0
+            };
+
+            const comparisonDiv = document.getElementById('comparison-results');
+            comparisonDiv.innerHTML = `
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="frc-card p-4">
+                        <h4 class="text-md font-semibold text-white mb-4">#${team1.number} - ${team1.name}</h4>
+                        <div class="space-y-2">
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">Total de Partidas</span>
+                                <span class="text-white font-semibold">${stats1.totalMatches}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">Vitórias</span>
+                                <span class="text-blue-500 font-semibold">${stats1.wins}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">Derrotas</span>
+                                <span class="text-gray-400 font-semibold">${stats1.losses}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">Empates</span>
+                                <span class="text-gray-300 font-semibold">${stats1.ties}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">Pontuação Média</span>
+                                <span class="text-blue-400 font-semibold">${stats1.averagePoints.toFixed(1)}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="frc-card p-4">
+                        <h4 class="text-md font-semibold text-white mb-4">#${team2.number} - ${team2.name}</h4>
+                        <div class="space-y-2">
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">Total de Partidas</span>
+                                <span class="text-white font-semibold">${stats2.totalMatches}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">Vitórias</span>
+                                <span class="text-blue-500 font-semibold">${stats2.wins}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">Derrotas</span>
+                                <span class="text-gray-400 font-semibold">${stats2.losses}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">Empates</span>
+                                <span class="text-gray-300 font-semibold">${stats2.ties}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">Pontuação Média</span>
+                                <span class="text-blue-400 font-semibold">${stats2.averagePoints.toFixed(1)}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Gráfico comparativo de estatísticas gerais
+            const ctx = document.getElementById('compare-chart').getContext('2d');
+            if (compareChart) {
+                compareChart.destroy();
+            }
+            compareChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: [
+                        'Partidas', 'Vitórias', 'Derrotas', 'Empates', 'Pontuação Média'
+                    ],
+                    datasets: [
+                        {
+                            label: `#${team1.number} - ${team1.name}`,
+                            backgroundColor: 'rgba(59,130,246,0.8)', // azul
+                            borderColor: 'rgba(59,130,246,1)',
+                            borderWidth: 1,
+                            data: [
+                                stats1.totalMatches,
+                                stats1.wins,
+                                stats1.losses,
+                                stats1.ties,
+                                stats1.averagePoints
+                            ]
+                        },
+                        {
+                            label: `#${team2.number} - ${team2.name}`,
+                            backgroundColor: 'rgba(156,163,175,0.8)', // cinza
+                            borderColor: 'rgba(156,163,175,1)',
+                            borderWidth: 1,
+                            data: [
+                                stats2.totalMatches,
+                                stats2.wins,
+                                stats2.losses,
+                                stats2.ties,
+                                stats2.averagePoints
+                            ]
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { labels: { color: '#fff' } },
+                        title: {
+                            display: true,
+                            text: 'Comparativo das Equipes',
+                            color: '#fff',
+                            font: { size: 16 }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#fff' },
+                            grid: { color: '#444' }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            ticks: { color: '#fff' },
+                            grid: { color: '#444' }
+                        }
+                    }
+                }
+            });
+
+            // Gráfico comparativo de pontuação ao longo dos jogos
+            const team1Matches = matches.filter(m => m.teamNumber === team1Number).sort((a, b) => a.matchNumber - b.matchNumber);
+            const team2Matches = matches.filter(m => m.teamNumber === team2Number).sort((a, b) => a.matchNumber - b.matchNumber);
+
+            // Pega todos os números de partidas únicos das duas equipes
+            const allMatchNumbers = Array.from(new Set([
+                ...team1Matches.map(m => m.matchNumber),
+                ...team2Matches.map(m => m.matchNumber)
+            ])).sort((a, b) => a - b);
+
+            // Prepara arrays de pontuação alinhados pelo número da partida (preenche com null para partidas não jogadas)
+            const team1Scores = allMatchNumbers.map(num => {
+                const match = team1Matches.find(m => m.matchNumber === num);
+                return match ? match.totalScore : null;
+            });
+            const team2Scores = allMatchNumbers.map(num => {
+                const match = team2Matches.find(m => m.matchNumber === num);
+                return match ? match.totalScore : null;
+            });
+
+            // Se todos os valores forem null, não renderiza o gráfico
+            const hasData1 = team1Scores.some(v => v !== null);
+            const hasData2 = team2Scores.some(v => v !== null);
+
+            const ctxProgress = document.getElementById('compare-progress-chart').getContext('2d');
+            if (compareProgressChart) {
+                compareProgressChart.destroy();
+            }
+            if (hasData1 || hasData2) {
+                compareProgressChart = new Chart(ctxProgress, {
+                    type: 'line',
+                    data: {
+                        labels: allMatchNumbers.map(n => `Partida ${n}`),
+                        datasets: [
+                            {
+                                label: `#${team1.number} - ${team1.name}`,
+                                data: team1Scores,
+                                borderColor: 'rgba(59,130,246,1)', // azul
+                                backgroundColor: 'rgba(59,130,246,0.2)',
+                                fill: false,
+                                spanGaps: true,
+                                tension: 0.2,
+                                pointRadius: 4,
+                                pointBackgroundColor: 'rgba(59,130,246,1)',
+                                pointBorderColor: '#fff'
+                            },
+                            {
+                                label: `#${team2.number} - ${team2.name}`,
+                                data: team2Scores,
+                                borderColor: 'rgba(156,163,175,1)', // cinza
+                                backgroundColor: 'rgba(156,163,175,0.2)',
+                                fill: false,
+                                spanGaps: true,
+                                tension: 0.2,
+                                pointRadius: 4,
+                                pointBackgroundColor: 'rgba(156,163,175,1)',
+                                pointBorderColor: '#fff'
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { labels: { color: '#fff' } },
+                            title: {
+                                display: true,
+                                text: 'Pontuação das Equipes ao Longo dos Jogos',
+                                color: '#fff',
+                                font: { size: 16 }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                ticks: { color: '#fff' },
+                                grid: { color: '#444' }
+                            },
+                            y: {
+                                beginAtZero: true,
+                                ticks: { color: '#fff' },
+                                grid: { color: '#444' }
+                            }
+                        }
+                    }
+                });
+            } else {
+                // Se não há dados, limpa o canvas
+                ctxProgress.clearRect(0, 0, ctxProgress.canvas.width, ctxProgress.canvas.height);
+            }
+        }
+
+        // Modal de detalhes da partida
+        function showMatchDetailModal(match) {
+            document.getElementById('modal-match-number').textContent = match.matchNumber;
+            document.getElementById('modal-match-details').innerHTML = `
+                <div><span class="font-semibold">Vitória/Derrota/Empate:</span> 
+                    <span class="${
+                        match.result === 'win' ? 'text-green-400' :
+                        match.result === 'loss' ? 'text-red-400' :
+                        'text-yellow-400'
+                    }">${match.result === 'win' ? 'Vitória' : match.result === 'loss' ? 'Derrota' : 'Empate'}</span>
+                </div>
+                <div class="mt-2 font-semibold text-orange-400">Autônomo</div>
+                <div>Coral L1: <span class="font-mono">${match.autoCoralL1}</span></div>
+                <div>Coral L2: <span class="font-mono">${match.autoCoralL2}</span></div>
+                <div>Coral L3: <span class="font-mono">${match.autoCoralL3}</span></div>
+                <div>Coral L4: <span class="font-mono">${match.autoCoralL4}</span></div>
+                <div>Processador: <span class="font-mono">${match.autoProcessador}</span></div>
+                <div>Net: <span class="font-mono">${match.autoNet}</span></div>
+                <div class="mt-2 font-semibold text-orange-400">Teleoperado</div>
+                <div>Coral L1: <span class="font-mono">${match.teleCoralL1}</span></div>
+                <div>Coral L2: <span class="font-mono">${match.teleCoralL2}</span></div>
+                <div>Coral L3: <span class="font-mono">${match.teleCoralL3}</span></div>
+                <div>Coral L4: <span class="font-mono">${match.teleCoralL4}</span></div>
+                <div>Processador: <span class="font-mono">${match.teleProcessador}</span></div>
+                <div>Net: <span class="font-mono">${match.teleNet}</span></div>
+                <div class="mt-2"><span class="font-semibold">Status Final:</span> <span class="font-mono">${match.endgameStatus}</span></div>
+                <div><span class="font-semibold">Nota do Piloto:</span> <span class="font-mono">${match.pilotRating}/10</span></div>
+                <div><span class="font-semibold">Pontuação Total:</span> <span class="font-mono">${match.totalScore}</span></div>
+                <div><span class="font-semibold">Observações:</span> <span class="font-mono">${match.observations ? match.observations : '-'}</span></div>
+            `;
+            document.getElementById('match-detail-modal').classList.remove('hidden');
+        }
+        function closeMatchDetailModal() {
+            document.getElementById('match-detail-modal').classList.add('hidden');
+        }
+
+        // Adicione a função updateTeamList global e sua implementação
+        async function updateTeamList() {
+            const teams = await Storage.getTeams();
+            const matches = await Storage.getMatches();
+            const teamListDiv = document.getElementById('team-list');
+            if (!teamListDiv) return;
+            if (teams.length === 0) {
+                teamListDiv.innerHTML = '<div class="text-gray-400 text-center py-4">Nenhuma equipe cadastrada.</div>';
+                return;
+            }
+            teamListDiv.innerHTML = teams.map(team => `
+    <div class="bg-blue-900 rounded-lg p-3 flex flex-col md:flex-row md:items-center md:justify-between space-y-2 md:space-y-0">
+        <div class="flex-1 min-w-0 flex items-center">
+            <span class="font-bold text-blue-400 text-base">#${team.number}</span>
+            <span class="text-white ml-3 text-base truncate" style="max-width: 420px; display: inline-block;" title="#${team.number} - ${team.name}">${team.name}</span>
+        </div>
+        <div class="flex flex-wrap gap-2 md:ml-16 mt-2 md:mt-0">
+            <button onclick="deleteTeam(${team.number})" class="bg-gray-400 hover:bg-gray-600 text-black px-3 py-1 rounded text-xs">Deletar Equipe</button>
+            <button onclick="showTeamMatches(${team.number})" class="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded text-xs">Ver Partidas</button>
+        </div>
+        <div id="team-matches-${team.number}" class="w-full"></div>
+    </div>
+`).join('');
+        }
+
+        // Adicione funções globais para deletar equipe e mostrar partidas
+        window.updateTeamList = updateTeamList;
+        window.deleteTeam = async function(teamNumber) {
+            // Remove equipe do banco
+            const teamsSnap = await db.ref('teams').once('value');
+            const teams = teamsSnap.val() || {};
+            const teamKey = Object.keys(teams).find(key => teams[key].number === teamNumber);
+            if (teamKey) {
+                // Remove todas as partidas da equipe
+                const matchesSnap = await db.ref('matches').once('value');
+                const matches = matchesSnap.val() || {};
+                for (const key in matches) {
+                    if (matches[key].teamNumber === teamNumber) {
+                        await db.ref('matches/' + key).remove();
+                    }
+                }
+                // Remove stats e equipe
+                await db.ref('team_stats/' + teamNumber).remove();
+                await db.ref('teams/' + teamKey).remove();
+                showNotification('Equipe deletada!');
+                updateTeamList();
+                updateRanking();
+                updateStatisticsSelects();
+                analyzeTeam();
+                compareTeams();
+            }
+
+        };
+
+        window.showTeamMatches = async function(teamNumber) {
+            const matches = await Storage.getMatches();
+            const teamMatches = matches.filter(m => m.teamNumber === teamNumber);
+            const div = document.getElementById('team-matches-' + teamNumber);
+            if (!div) return;
+            if (teamMatches.length === 0) {
+                div.innerHTML = '<div class="text-gray-400 text-xs mt-2">Nenhuma partida registrada para esta equipe.</div>';
+                return;
+            }
+            div.innerHTML = `
+                <div class="mt-2 bg-gray-800 rounded p-2">
+                    <div class="font-semibold text-white mb-2 text-xs">Partidas:</div>
+                    ${teamMatches.map(m => `
+                        <div class="flex items-center justify-between text-xs bg-gray-700 rounded p-1 mb-1">
+                            <span>Partida ${m.matchNumber} - ${m.totalScore} pts</span>
+                            <button onclick="window.deleteMatch('${m.id}', ${teamNumber})" class="bg-gray-400 hover:bg-gray-500 text-black px-2 py-0.5 rounded">Deletar</button>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        };
+
+        window.deleteMatch = async function(matchId, teamNumber = null) {
+            // Buscar a partida antes de deletar para saber o teamNumber e pontos
+            const matchesSnap = await db.ref('matches').once('value');
+            const matches = matchesSnap.val() || {};
+            let match = null;
+            let matchKey = null;
+            for (const key in matches) {
+                if (matches[key].id === matchId) {
+                    match = matches[key];
+                    matchKey = key;
+                    break;
+                }
+            }
+            if (!matchKey) return;
+            // Remove a partida do banco
+            await db.ref('matches/' + matchKey).remove();
+
+            // Atualizar estatísticas da equipe removendo os dados da partida deletada
+            if (match && match.teamNumber) {
+                // Recalcula todas as estatísticas da equipe a partir das partidas restantes
+                const allMatches = Object.values(matches)
+                    .filter(m => m.id !== matchId && m.teamNumber === match.teamNumber);
+                let wins = 0, losses = 0, ties = 0, totalPoints = 0;
+                allMatches.forEach(m => {
+                    if (m.result === 'win') wins++;
+                    else if (m.result === 'loss') losses++;
+                    else if (m.result === 'tie') ties++;
+                    totalPoints += m.totalScore || 0;
+                });
+                const totalMatches = allMatches.length;
+                const averagePoints = totalMatches > 0 ? totalPoints / totalMatches : 0;
+                await db.ref('team_stats/' + match.teamNumber).set({
+                    teamNumber: match.teamNumber,
+                    totalMatches,
+                    wins,
+                    losses,
+                    ties,
+                    totalPoints,
+                    averagePoints,
+                });
+            }
+
+            showNotification('Partida deletada!');
+            updateTeamList();
+            updateRanking();
+            updateStatisticsSelects();
+            analyzeTeam();
+            compareTeams();
+            // Atualiza a lista de partidas da equipe na tela de registrar equipe
+            if (teamNumber) {
+                window.showTeamMatches(teamNumber);
+            }
+        };
+
+        // Torna funções globais para acesso via onclick no HTML
+        window.showPage = showPage;
+        window.simulateMatch = simulateMatch;
+        window.analyzeTeam = analyzeTeam;
+        window.compareTeams = compareTeams;
+        window.showMatchDetailModal = showMatchDetailModal;
+        window.closeMatchDetailModal = closeMatchDetailModal;
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', async function() {
+            await showPage('home');
+            setStatsModule('allIn');
+            await updateStatisticsSelects();
+        });
+    </script>
+</body>
+</html>
